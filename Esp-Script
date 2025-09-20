@@ -1,0 +1,173 @@
+-- Local ESP with Bigger Box ESP
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+ 
+-- Ayarlar
+local TOGGLE_KEY = Enum.KeyCode.Q
+local SHOW_SELF = false
+local SHOW_HEALTH = true
+local SHOW_DISTANCE = true
+local ONLY_ENEMIES = false
+local MAX_DRAW_DISTANCE = 1000
+local BOX_COLOR = Color3.fromRGB(255,0,0) -- Box rengi
+local BOX_TRANSPARENCY = 0.6
+local TEXT_SIZE = 14
+local ENABLED = true
+ 
+-- Takım renkleri
+local TEAM_COLORS = {}
+for _, team in ipairs(game:GetService("Teams"):GetTeams()) do
+    TEAM_COLORS[team.Name] = team.TeamColor.Color
+end
+ 
+-- Oyuncu için ESP oluştur
+local function createESP(player)
+    if not player.Character then return nil end
+    local root = player.Character:FindFirstChild("HumanoidRootPart")
+    local head = player.Character:FindFirstChild("Head")
+    if not root or not head then return nil end
+ 
+    -- BillboardGui oluştur (isim, sağlık, mesafe)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_Billboard"
+    billboard.Adornee = head
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.MaxDistance = MAX_DRAW_DISTANCE
+    billboard.Parent = head
+ 
+    local label = Instance.new("TextLabel")
+    label.Name = "ESP_Label"
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.TextScaled = false
+    label.TextSize = TEXT_SIZE
+    label.Font = Enum.Font.SourceSansSemibold
+    label.TextColor3 = Color3.fromRGB(255,80,10)
+    label.TextStrokeTransparency = 0.5
+    label.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+    label.Text = ""
+    label.Parent = billboard
+ 
+    -- Box ESP (karakter etrafında)
+    local box = Instance.new("BoxHandleAdornment")
+    box.Name = "ESP_Box"
+    box.Adornee = root
+    box.AlwaysOnTop = true
+    box.ZIndex = 10
+    box.Size = Vector3.new(3,5,2) -- Büyütülmüş boyut: genişlik, yükseklik, derinlik
+    box.Color3 = BOX_COLOR
+    box.Transparency = BOX_TRANSPARENCY
+    box.Parent = workspace
+ 
+    return {billboard=billboard, box=box}
+end
+ 
+-- ESP güncelleme
+local function updateESP(player, esp)
+    if not esp or not player.Character then
+        if esp then
+            esp.billboard.Enabled = false
+            esp.box.Visible = false
+        end
+        return
+    end
+ 
+    local root = player.Character:FindFirstChild("HumanoidRootPart")
+    local humanoid = player.Character:FindFirstChildWhichIsA("Humanoid")
+    if not root or not humanoid then
+        esp.billboard.Enabled = false
+        esp.box.Visible = false
+        return
+    end
+ 
+    if ONLY_ENEMIES and LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
+        esp.billboard.Enabled = false
+        esp.box.Visible = false
+        return
+    end
+ 
+    local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then
+        esp.billboard.Enabled = false
+        esp.box.Visible = false
+        return
+    end
+ 
+    local dist = (root.Position - localRoot.Position).Magnitude
+    if dist > MAX_DRAW_DISTANCE then
+        esp.billboard.Enabled = false
+        esp.box.Visible = false
+        return
+    end
+ 
+    -- TextLabel güncelle
+    local txtParts = {}
+    if SHOW_DISTANCE then table.insert(txtParts, "("..tostring(math.floor(dist)).."m)") end
+    table.insert(txtParts, player.Name)
+    if SHOW_HEALTH then table.insert(txtParts, "["..tostring(math.floor(humanoid.Health)).."]") end
+    esp.billboard.ESP_Label.Text = table.concat(txtParts," ")
+ 
+    -- Takım rengi
+    if player.Team and TEAM_COLORS[player.Team.Name] then
+        esp.billboard.ESP_Label.TextColor3 = TEAM_COLORS[player.Team.Name]
+    else
+        esp.billboard.ESP_Label.TextColor3 = Color3.fromRGB(255,80,10)
+    end
+ 
+    esp.billboard.Enabled = ENABLED
+    esp.box.Visible = ENABLED
+end
+ 
+-- Oyuncu yönetimi
+local ESPs = {}
+local function setupPlayer(player)
+    if player == LocalPlayer and not SHOW_SELF then return end
+ 
+    player.CharacterAdded:Connect(function()
+        ESPs[player] = createESP(player)
+    end)
+ 
+    if player.Character then
+        ESPs[player] = createESP(player)
+    end
+ 
+    player.CharacterRemoving:Connect(function()
+        if ESPs[player] then
+            if ESPs[player].billboard then ESPs[player].billboard:Destroy() end
+            if ESPs[player].box then ESPs[player].box:Destroy() end
+            ESPs[player] = nil
+        end
+    end)
+end
+ 
+for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
+Players.PlayerAdded:Connect(setupPlayer)
+ 
+-- Toggle tuşu
+local typing = false
+UserInputService.TextBoxFocused:Connect(function() typing = true end)
+UserInputService.TextBoxFocusReleased:Connect(function() typing = false end)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or typing then return end
+    if input.KeyCode == TOGGLE_KEY then
+        ENABLED = not ENABLED
+        pcall(function()
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Hacking-Sim",
+                Text = "ESP: "..tostring(ENABLED),
+                Duration = 2
+            })
+        end)
+    end
+end)
+ 
+-- Render loop
+RunService.RenderStepped:Connect(function()
+    for player, esp in pairs(ESPs) do
+        pcall(function() updateESP(player, esp) end)
+    end
+end)
