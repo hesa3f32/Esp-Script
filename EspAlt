@@ -1,9 +1,9 @@
 -- Define initial customization options
-local defaultHighlightColor = Color3.fromRGB(255, 255, 255)
-local outlineColor = Color3.fromRGB(0, 0, 0)
-local fillTransparency = 0.5
-local outlineTransparency = 0
-local maxDistance = 500
+local defaultHighlightColor = Color3.fromRGB(255, 255, 255) -- Default white color if no team color is found
+local outlineColor = Color3.fromRGB(0, 0, 0) -- Black outline color
+local fillTransparency = 0.5 -- Transparency of the fill
+local outlineTransparency = 0 -- Transparency of the outline
+local maxDistance = 500 -- Maximum distance to show highlights
 
 -- Toggle variable
 local highlightsEnabled = true
@@ -21,11 +21,10 @@ local function getHighlightColor(player)
     end
 end
 
--- Function to create highlight and name for a player
+-- Function to create highlight for a player
 local function createHighlight(player)
     local character = player.Character or player.CharacterAdded:Wait()
     if character and not character:FindFirstChild("PlayerHighlight") then
-        -- Highlight
         local highlight = Instance.new("Highlight")
         highlight.Name = "PlayerHighlight"
         highlight.Adornee = character
@@ -34,33 +33,10 @@ local function createHighlight(player)
         highlight.FillTransparency = fillTransparency
         highlight.OutlineTransparency = outlineTransparency
         highlight.Parent = character
-
-        -- Name tag
-        if not character:FindFirstChild("PlayerName") then
-            local head = character:FindFirstChild("Head")
-            if head then
-                local billboard = Instance.new("BillboardGui")
-                billboard.Name = "PlayerName"
-                billboard.Adornee = head
-                billboard.Size = UDim2.new(0,150,0,30) -- Küçük boyut
-                billboard.StudsOffset = Vector3.new(0,2.5,0)
-                billboard.AlwaysOnTop = true
-                billboard.Parent = character
-
-                local label = Instance.new("TextLabel")
-                label.Size = UDim2.new(1,0,1,0)
-                label.BackgroundTransparency = 1
-                label.RichText = true
-                label.Font = Enum.Font.SourceSansSemibold
-                label.TextSize = 14 -- Küçük yazı boyutu
-                label.TextWrapped = true
-                label.Parent = billboard
-            end
-        end
     end
 end
 
--- Function to remove highlight and name from a player
+-- Function to remove highlight from a player
 local function removeHighlight(player)
     local character = player.Character
     if character then
@@ -68,14 +44,10 @@ local function removeHighlight(player)
         if highlight then
             highlight:Destroy()
         end
-        local nameTag = character:FindFirstChild("PlayerName")
-        if nameTag then
-            nameTag:Destroy()
-        end
     end
 end
 
--- Function to update highlights based on distance, health and name
+-- Function to update highlights based on distance
 local function updateHighlights()
     local localPlayer = game.Players.LocalPlayer
     local localCharacter = localPlayer.Character
@@ -87,20 +59,8 @@ local function updateHighlights()
                 if character and character.PrimaryPart then
                     local distance = (localPosition - character.PrimaryPart.Position).Magnitude
                     playerDistances[player] = distance
-
                     if distance <= maxDistance then
                         createHighlight(player)
-                        local nameTag = character:FindFirstChild("PlayerName")
-                        if nameTag and nameTag:FindFirstChildOfClass("TextLabel") then
-                            local health = character:FindFirstChildWhichIsA("Humanoid") and character:FindFirstChildWhichIsA("Humanoid").Health or 0
-                            local label = nameTag:FindFirstChildOfClass("TextLabel")
-                            label.Text = string.format(
-                                '<font color="#FF0000">%s</font> <font color="#FF69B4">[%d]</font> <font color="#0000FF">(%d m)</font>',
-                                player.Name,
-                                math.floor(health),
-                                math.floor(distance)
-                            )
-                        end
                     else
                         removeHighlight(player)
                     end
@@ -144,7 +104,7 @@ spawn(function()
         if highlightsEnabled then
             updateHighlights()
         end
-        wait(0.5)
+        wait(0.5) -- Adjust the interval as needed
     end
 end)
 
@@ -152,7 +112,7 @@ end)
 spawn(function()
     while true do
         batchUpdateHighlights()
-        wait(0.1)
+        wait(0.1) -- Adjust the interval as needed
     end
 end)
 
@@ -172,9 +132,10 @@ local function createToggleButton()
         highlightsEnabled = not highlightsEnabled
         if highlightsEnabled then
             toggleButton.Text = "Disable Highlights"
-            updateHighlights()
+            updateHighlights()  -- Initial update when enabled
         else
             toggleButton.Text = "Enable Highlights"
+            -- Remove existing highlights
             for _, player in pairs(game.Players:GetPlayers()) do
                 removeHighlight(player)
             end
@@ -184,22 +145,3 @@ end
 
 -- Create toggle button
 createToggleButton()
-
--- Add keyboard toggle for (-) key
-local UserInputService = game:GetService("UserInputService")
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.Minus then
-        highlightsEnabled = not highlightsEnabled
-        if highlightsEnabled then
-            for _, player in pairs(game.Players:GetPlayers()) do
-                createHighlight(player)
-            end
-        else
-            for _, player in pairs(game.Players:GetPlayers()) do
-                removeHighlight(player)
-            end
-        end
-    end
-end)
--- Know This is a level 4 esp scripr
